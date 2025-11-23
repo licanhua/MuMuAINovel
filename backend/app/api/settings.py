@@ -24,10 +24,23 @@ router = APIRouter(prefix="/settings", tags=["设置管理"])
 
 def read_env_defaults() -> Dict[str, Any]:
     """从.env文件读取默认配置（仅读取，不修改）"""
+    provider = app_settings.default_ai_provider
+    
+    # 根据提供商选择对应的配置
+    if provider == "gemini":
+        api_key = app_settings.gemini_api_key or ""
+        api_base_url = ""  # Gemini不需要base_url
+    elif provider == "anthropic":
+        api_key = app_settings.anthropic_api_key or ""
+        api_base_url = app_settings.anthropic_base_url or ""
+    else:  # openai or custom
+        api_key = app_settings.openai_api_key or ""
+        api_base_url = app_settings.openai_base_url or ""
+    
     return {
-        "api_provider": app_settings.default_ai_provider,
-        "api_key": app_settings.openai_api_key or app_settings.anthropic_api_key or "",
-        "api_base_url": app_settings.openai_base_url or app_settings.anthropic_base_url or "",
+        "api_provider": provider,
+        "api_key": api_key,
+        "api_base_url": api_base_url,
         "llm_model": app_settings.default_model,
         "temperature": app_settings.default_temperature,
         "max_tokens": app_settings.default_max_tokens,
@@ -130,6 +143,11 @@ async def save_settings(
     # 准备数据
     settings_dict = data.model_dump(exclude_unset=True)
     
+    # Gemini不需要base_url，自动清空
+    if settings_dict.get("api_provider") == "gemini":
+        settings_dict["api_base_url"] = ""
+        logger.info(f"检测到Gemini提供商，已自动清空api_base_url")
+    
     if settings:
         # 更新现有设置
         for key, value in settings_dict.items():
@@ -172,6 +190,12 @@ async def update_settings(
     
     # 更新设置
     update_data = data.model_dump(exclude_unset=True)
+    
+    # Gemini不需要base_url，自动清空
+    if update_data.get("api_provider") == "gemini":
+        update_data["api_base_url"] = ""
+        logger.info(f"检测到Gemini提供商，已自动清空api_base_url")
+    
     for key, value in update_data.items():
         setattr(settings, key, value)
     
@@ -208,7 +232,7 @@ async def delete_settings(
 @router.get("/models")
 async def get_available_models(
     api_key: str,
-    api_base_url: str,
+    api_base_url: str = "",
     provider: str = "openai"
 ):
     """
@@ -216,8 +240,8 @@ async def get_available_models(
     
     Args:
         api_key: API 密钥
-        api_base_url: API 基础 URL
-        provider: API 提供商 (openai, anthropic, azure, custom)
+        api_base_url: API 基础 URL (Gemini不需要)
+        provider: API 提供商 (openai, anthropic, gemini, azure, custom)
     
     Returns:
         模型列表
@@ -263,12 +287,92 @@ async def get_available_models(
                     "count": len(models)
                 }
                 
+            elif provider == "gemini":
+                # Gemini 使用官方SDK获取模型列表
+                try:
+                    import google.generativeai as genai
+                    
+                    genai.configure(api_key=api_key)
+                    
+                    # Gemini 常用模型列表（因为SDK没有直接列出所有模型的方法）
+                    # 参考: https://ai.google.dev/models/gemini
+                    gemini_models = [
+                        {
+                            "value": "gemini-2.0-flash-exp",
+                            "label": "Gemini 2.0 Flash (Experimental)",
+                            "description": "最新实验版本，多模态能力"
+                        },
+                        {
+                            "value": "gemini-1.5-pro",
+                            "label": "Gemini 1.5 Pro",
+                            "description": "最强大的模型，支持长上下文"
+                        },
+                        {
+                            "value": "gemini-1.5-flash",
+                            "label": "Gemini 1.5 Flash",
+                            "description": "快速高效，适合日常使用"
+                        },
+                        {
+                            "value": "gemini-1.5-flash-8b",
+                            "label": "Gemini 1.5 Flash 8B",
+                            "description": "轻量级模型，更快速度"
+                        },
+                        {
+                            "value": "gemini-pro",
+                            "label": "Gemini Pro (Legacy)",
+                            "description": "1.0版本，稳定可靠"
+                        }
+                    ]
+                    
+                    logger.info(f"成功获取 {len(gemini_models)} 个Gemini模型")
+                    return {
+                        "provider": provider,
+                        "models": gemini_models,
+                        "count": len(gemini_models)
+                    }
+                    
+                except ImportError:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="未安装google-generativeai库，请运行: pip install google-generativeai"
+                    )
+                
             elif provider == "anthropic":
-                # Anthropic 没有公开的模型列表API
-                raise HTTPException(
-                    status_code=400,
-                    detail="Anthropic 不支持自动获取模型列表，请手动输入模型名称"
-                )
+                # Anthropic 常用模型列表（没有公开的模型列表API）
+                anthropic_models = [
+                    {
+                        "value": "claude-3-5-sonnet-20241022",
+                        "label": "Claude 3.5 Sonnet (Latest)",
+                        "description": "最新版本，性能最佳"
+                    },
+                    {
+                        "value": "claude-3-5-sonnet-20240620",
+                        "label": "Claude 3.5 Sonnet",
+                        "description": "强大的平衡模型"
+                    },
+                    {
+                        "value": "claude-3-opus-20240229",
+                        "label": "Claude 3 Opus",
+                        "description": "最强大的模型"
+                    },
+                    {
+                        "value": "claude-3-sonnet-20240229",
+                        "label": "Claude 3 Sonnet",
+                        "description": "平衡性能和速度"
+                    },
+                    {
+                        "value": "claude-3-haiku-20240307",
+                        "label": "Claude 3 Haiku",
+                        "description": "快速轻量级模型"
+                    }
+                ]
+                
+                logger.info(f"返回 {len(anthropic_models)} 个Anthropic模型")
+                return {
+                    "provider": provider,
+                    "models": anthropic_models,
+                    "count": len(anthropic_models)
+                }
             
             else:
                 raise HTTPException(
@@ -301,7 +405,7 @@ async def get_available_models(
 class ApiTestRequest(BaseModel):
     """API 测试请求模型"""
     api_key: str
-    api_base_url: str
+    api_base_url: str = ""  # Gemini不需要
     provider: str
     llm_model: str
 
@@ -323,6 +427,11 @@ async def test_api_connection(data: ApiTestRequest):
     llm_model = data.llm_model
     import time
     
+    # Gemini不需要base_url
+    if provider == "gemini":
+        api_base_url = ""
+        logger.info("检测到Gemini提供商，忽略api_base_url参数")
+    
     try:
         start_time = time.time()
         
@@ -342,14 +451,15 @@ async def test_api_connection(data: ApiTestRequest):
         logger.info(f"🧪 开始测试 API 连接")
         logger.info(f"  - 提供商: {provider}")
         logger.info(f"  - 模型: {llm_model}")
-        logger.info(f"  - Base URL: {api_base_url}")
+        if api_base_url:
+            logger.info(f"  - Base URL: {api_base_url}")
         
         response = await test_service.generate_text(
             prompt=test_prompt,
             provider=provider,
             model=llm_model,
             temperature=0.7,
-            max_tokens=8000
+            max_tokens=100
         )
         
         end_time = time.time()
@@ -359,8 +469,8 @@ async def test_api_connection(data: ApiTestRequest):
         logger.info(f"  - 响应时间: {response_time}ms")
         
         # 安全地处理响应内容（确保是字符串）
-        response_str = str(response) if response else 'N/A'
-        logger.info(f"  - 响应内容: {response_str[:100]}")
+        response_content = response.get("content", "") if isinstance(response, dict) else str(response)
+        logger.info(f"  - 响应内容: {response_content[:100]}")
         
         return {
             "success": True,
@@ -368,7 +478,7 @@ async def test_api_connection(data: ApiTestRequest):
             "response_time_ms": response_time,
             "provider": provider,
             "model": llm_model,
-            "response_preview": response_str[:100] if len(response_str) > 100 else response_str,
+            "response_preview": response_content[:100] if len(response_content) > 100 else response_content,
             "details": {
                 "api_available": True,
                 "model_accessible": True,
@@ -380,32 +490,36 @@ async def test_api_connection(data: ApiTestRequest):
         # 配置错误
         error_msg = str(e)
         logger.error(f"❌ API 配置错误: {error_msg}")
+        
+        suggestions = ["请检查 API Key 是否正确"]
+        if provider != "gemini":
+            suggestions.append("请确认 API Base URL 格式正确")
+        suggestions.append("请验证所选提供商是否匹配")
+        
         return {
             "success": False,
             "message": "API 配置错误",
             "error": error_msg,
             "error_type": "ConfigurationError",
-            "suggestions": [
-                "请检查 API Key 是否正确",
-                "请确认 API Base URL 格式正确",
-                "请验证所选提供商是否匹配"
-            ]
+            "suggestions": suggestions
         }
         
     except TimeoutError as e:
         # 超时错误
         error_msg = str(e)
         logger.error(f"❌ API 请求超时: {error_msg}")
+        
+        suggestions = ["请检查网络连接"]
+        if provider != "gemini":
+            suggestions.append("请确认 API Base URL 是否可访问")
+        suggestions.append("如果使用代理，请检查代理设置")
+        
         return {
             "success": False,
             "message": "API 请求超时",
             "error": error_msg,
             "error_type": "TimeoutError",
-            "suggestions": [
-                "请检查网络连接",
-                "请确认 API Base URL 是否可访问",
-                "如果使用代理，请检查代理设置"
-            ]
+            "suggestions": suggestions
         }
         
     except Exception as e:
@@ -423,20 +537,22 @@ async def test_api_connection(data: ApiTestRequest):
                 "请求被 API 提供商阻止",
                 "可能原因：API Key 被限制或地区限制",
                 "建议：检查 API Key 状态和账户余额",
-                "建议：尝试更换 API Base URL 或使用代理"
             ]
-        elif "unauthorized" in error_msg.lower() or "401" in error_msg:
+            if provider != "gemini":
+                suggestions.append("建议：尝试更换 API Base URL 或使用代理")
+        elif "unauthorized" in error_msg.lower() or "401" in error_msg or "403" in error_msg:
             suggestions = [
                 "API Key 认证失败",
                 "建议：检查 API Key 是否正确",
-                "建议：确认 API Key 是否过期"
+                "建议：确认 API Key 是否过期或已启用"
             ]
         elif "not found" in error_msg.lower() or "404" in error_msg:
             suggestions = [
                 "API 端点不存在或模型不可用",
-                "建议：检查 API Base URL 是否正确",
                 "建议：确认模型名称是否正确"
             ]
+            if provider != "gemini":
+                suggestions.append("建议：检查 API Base URL 是否正确")
         elif "rate limit" in error_msg.lower() or "429" in error_msg:
             suggestions = [
                 "API 请求频率超限",
