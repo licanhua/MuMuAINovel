@@ -21,6 +21,7 @@ import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppFooter from './components/AppFooter';
 import './App.css';
 
 function App() {
@@ -33,11 +34,11 @@ function App() {
         }}
       >
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<><Login /><AppFooter /></>} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           
-          <Route path="/" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} />
-          <Route path="/projects" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><><ProjectList /><AppFooter /></></ProtectedRoute>} />
+          <Route path="/projects" element={<ProtectedRoute><><ProjectList /><AppFooter /></></ProtectedRoute>} />
           <Route path="/wizard" element={<ProtectedRoute><ProjectWizardNew /></ProtectedRoute>} />
           <Route path="/inspiration" element={<ProtectedRoute><Inspiration /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-green.svg)
 ![React](https://img.shields.io/badge/react-18.3.1-blue.svg)
@@ -158,7 +158,7 @@ npm run build  # 生产构建
 DATABASE_URL=postgresql+asyncpg://mumuai:your_password@postgres:5432/mumuai_novel
 POSTGRES_PASSWORD=your_secure_password
 
-# AI 服务（至少配置一个）
+# AI 服务
 OPENAI_API_KEY=your_openai_key
 OPENAI_BASE_URL=https://api.openai.com/v1
 DEFAULT_AI_PROVIDER=openai
@@ -173,12 +173,6 @@ LOCAL_AUTH_PASSWORD=your_password
 ### 可选配置
 
 ```bash
-# Gemini
-GEMINI_API_KEY=your_gemini_key
-
-# Claude
-ANTHROPIC_API_KEY=your_claude_key
-
 # LinuxDO OAuth
 LINUXDO_CLIENT_ID=your_client_id
 LINUXDO_CLIENT_SECRET=your_client_secret
